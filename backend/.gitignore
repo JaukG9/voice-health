@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+*.pyc
+neurovoice.db
+pretrained_models/

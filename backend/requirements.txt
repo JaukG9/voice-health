@@ -1,0 +1,15 @@
+# NeuroVoice AI backend — everything here is free and runs locally.
+fastapi
+uvicorn[standard]
+python-multipart
+numpy
+scipy
+soundfile
+noisereduce
+praat-parselmouth
+faster-whisper
+
+# Optional upgrade (large download, ~1.5 GB with PyTorch): pretrained ECAPA-TDNN
+# voice embeddings for more sensitive longitudinal comparison. Without it, the
+# backend automatically falls back to MFCC-statistics embeddings.
+#   pip install speechbrain torch --index-url https://download.pytorch.org/whl/cpu

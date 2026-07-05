@@ -21,7 +21,7 @@ class MetricDef:
     adverse: str  # direction that is a concern: "up", "down" or "none"
 
 
-METRICS = [
+SPEECH_METRICS = [
     MetricDef("speech_rate_wpm", "speech rate", "wpm", "rel", 0.10, "down"),
     MetricDef("articulation_rate_wpm", "articulation rate", "wpm", "rel", 0.10, "down"),
     MetricDef("avg_pause_duration_s", "average pause duration", "s", "rel", 0.25, "up"),
@@ -37,9 +37,33 @@ METRICS = [
     MetricDef("pronunciation_confidence", "pronunciation clarity", "", "abs", 0.08, "down"),
 ]
 
+# For a sustained vowel there are no words to time, and steadiness flips
+# meaning: on a held note, MORE pitch variation is the concern, and a shorter
+# phonation time suggests reduced breath support.
+VOWEL_METRICS = [
+    MetricDef("duration_s", "phonation time", "s", "rel", 0.15, "down"),
+    MetricDef("mean_pitch_hz", "average pitch", "Hz", "rel", 0.10, "none"),
+    MetricDef("pitch_variability_semitones", "pitch variation", "semitones", "rel", 0.30, "up"),
+    MetricDef("mean_volume_db", "loudness", "dB", "abs", 3.0, "down"),
+    MetricDef("jitter_percent", "jitter (voice steadiness)", "%", "rel", 0.30, "up"),
+    MetricDef("shimmer_percent", "shimmer (loudness steadiness)", "%", "rel", 0.30, "up"),
+    MetricDef("hnr_db", "voice clarity (HNR)", "dB", "abs", 2.0, "down"),
+    MetricDef("tremor_index", "voice tremor", "", "abs", 0.08, "up"),
+]
 
-def compare(metrics: dict, embedding: list[float], history: list[dict]) -> dict:
-    """Compare current metrics/embedding to the personal baseline and recent window."""
+
+def metric_defs_for(recording_type: str) -> list[MetricDef]:
+    return VOWEL_METRICS if recording_type == "sustained_vowel" else SPEECH_METRICS
+
+
+def compare(
+    metrics: dict,
+    embedding: list[float],
+    history: list[dict],
+    recording_type: str = "reading_passage",
+) -> dict:
+    """Compare current metrics/embedding to the personal baseline and recent
+    window. History must contain only recordings of the same type."""
     if not history:
         return {
             "status": "first_recording",
@@ -55,7 +79,7 @@ def compare(metrics: dict, embedding: list[float], history: list[dict]) -> dict:
     recent_rows = history[-min(RECENT_WINDOW, len(history)) :]
 
     comparisons, findings, deviations = [], [], []
-    for m in METRICS:
+    for m in metric_defs_for(recording_type):
         current = metrics.get(m.key)
         baseline = _mean_of(baseline_rows, m.key)
         if current is None or baseline is None:

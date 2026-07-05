@@ -24,6 +24,8 @@ from .database import delete_user_data, get_history, init_db
 # One analysis at a time keeps memory predictable on a laptop-class machine.
 _analysis_lock = threading.Lock()
 
+RECORDING_TYPES = {"reading_passage", "sustained_vowel", "counting", "free_speech"}
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -50,6 +52,11 @@ def analyze(
     user_id: str = Form(...),
     recording_type: str = Form("reading_passage"),
 ) -> dict:
+    if recording_type not in RECORDING_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown recording_type; expected one of {sorted(RECORDING_TYPES)}.",
+        )
     suffix = Path(file.filename or "recording.wav").suffix or ".wav"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(file.file.read())

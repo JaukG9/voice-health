@@ -12,13 +12,19 @@ from .trends import compare
 
 def analyze_recording(path: str, user_id: str, recording_type: str) -> dict:
     audio = load_audio(path)
-    transcription = transcribe(audio)
+    if recording_type == "sustained_vowel":
+        # A held "ahhh" has no words — skip transcription entirely.
+        transcription = {"transcript": "", "confidence": 0.0, "words": []}
+    else:
+        transcription = transcribe(audio)
     metrics = extract_features(audio, SAMPLE_RATE, transcription["words"])
     embedding, embedding_backend = get_embedding(audio, SAMPLE_RATE)
 
-    history = get_history(user_id)
-    trends = compare(metrics, embedding, history)
-    summary = generate_summary(metrics, trends)
+    # Baselines are per check type: a held vowel is never compared to a
+    # reading passage.
+    history = get_history(user_id, recording_type)
+    trends = compare(metrics, embedding, history, recording_type)
+    summary = generate_summary(metrics, trends, recording_type)
 
     rec_id, created_at = insert_recording(
         user_id=user_id,

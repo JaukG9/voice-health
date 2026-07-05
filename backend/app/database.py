@@ -70,13 +70,16 @@ def insert_recording(
     return rec_id, created_at
 
 
-def get_history(user_id: str) -> list[dict]:
-    """All recordings for a user, oldest first, with JSON columns decoded."""
+def get_history(user_id: str, recording_type: str | None = None) -> list[dict]:
+    """All recordings for a user (optionally one type), oldest first."""
+    query = "SELECT * FROM recordings WHERE user_id = ?"
+    params: list = [user_id]
+    if recording_type:
+        query += " AND recording_type = ?"
+        params.append(recording_type)
+    query += " ORDER BY created_at"
     with _connect() as conn:
-        rows = conn.execute(
-            "SELECT * FROM recordings WHERE user_id = ? ORDER BY created_at",
-            (user_id,),
-        ).fetchall()
+        rows = conn.execute(query, params).fetchall()
     history = []
     for row in rows:
         item = dict(row)

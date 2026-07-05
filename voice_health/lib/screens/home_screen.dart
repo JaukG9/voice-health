@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/check_type.dart';
 import '../services/app_store.dart';
 import '../widgets/score_ring.dart';
 import '../widgets/stat_card.dart';
@@ -25,7 +26,27 @@ class HomeScreen extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 16),
-              _TodayCard(recordedToday: store.recordedToday),
+              _TodayCard(
+                doneCount: kCheckTypes
+                    .where((t) => store.recordedTodayType(t.key))
+                    .length,
+              ),
+              const SizedBox(height: 12),
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childAspectRatio: 1.9,
+                children: [
+                  for (final type in kCheckTypes)
+                    _CheckTile(
+                      type: type,
+                      done: store.recordedTodayType(type.key),
+                    ),
+                ],
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -80,43 +101,96 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _TodayCard extends StatelessWidget {
-  final bool recordedToday;
+  final int doneCount;
 
-  const _TodayCard({required this.recordedToday});
+  const _TodayCard({required this.doneCount});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final allDone = doneCount == kCheckTypes.length;
+    final message = allDone
+        ? 'All voice checks done today. Nice work!'
+        : doneCount == 0
+            ? "You haven't recorded today yet — pick a check below."
+            : '$doneCount of ${kCheckTypes.length} voice checks done today.';
     return Card(
       elevation: 0,
-      color: recordedToday ? scheme.primaryContainer : scheme.tertiaryContainer,
+      color: allDone ? scheme.primaryContainer : scheme.tertiaryContainer,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
             Icon(
-              recordedToday ? Icons.check_circle : Icons.mic_none,
+              allDone ? Icons.check_circle : Icons.mic_none,
               size: 36,
               color: scheme.primary,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                recordedToday
-                    ? "Today's voice check is done. Nice work!"
-                    : "You haven't recorded today yet.",
+                message,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
             ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const RecordScreen()),
-              ),
-              icon: const Icon(Icons.mic),
-              label: Text(recordedToday ? 'Again' : 'Record'),
-            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckTile extends StatelessWidget {
+  final CheckType type;
+  final bool done;
+
+  const _CheckTile({required this.type, required this.done});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 0,
+      color: scheme.surfaceContainerHighest,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => RecordScreen(type: type)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              Icon(type.icon, color: scheme.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      type.title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      type.tagline,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (done)
+                Icon(Icons.check_circle,
+                    size: 18, color: scheme.primary),
+            ],
+          ),
         ),
       ),
     );

@@ -1,10 +1,12 @@
 import 'package:intl/intl.dart';
 
 import '../models/analysis_result.dart';
+import '../models/check_type.dart';
 import 'app_store.dart';
 
 /// Builds a plain-text report of the full history, suitable for pasting
-/// into an email or printing for a clinician.
+/// into an email or printing for a clinician. Trends are reported per check
+/// type, since each type has its own baseline.
 String buildClinicianReport(AppStore store) {
   final dateFormat = DateFormat('yyyy-MM-dd HH:mm');
   final history = store.history;
@@ -25,32 +27,37 @@ String buildClinicianReport(AppStore store) {
   buffer
     ..writeln('LATEST SUMMARY')
     ..writeln(history.last.summary)
-    ..writeln()
-    ..writeln('METRIC TRENDS (first recording -> latest)');
-  for (final metric in kChartMetrics) {
-    final values = history
-        .map((r) => r.metrics[metric.key])
-        .whereType<double>()
-        .toList();
-    if (values.length < 2) continue;
-    buffer.writeln('  ${metric.label}: '
-        '${metric.format(values.first)} -> ${metric.format(values.last)}');
+    ..writeln();
+
+  for (final type in kCheckTypes) {
+    final rows =
+        history.where((r) => r.recordingType == type.key).toList();
+    if (rows.length < 2) continue;
+    buffer.writeln(
+        'METRIC TRENDS — ${type.title} (first recording -> latest)');
+    for (final metric in chartMetricsFor(type.key)) {
+      final values =
+          rows.map((r) => r.metrics[metric.key]).whereType<double>().toList();
+      if (values.length < 2) continue;
+      buffer.writeln('  ${metric.label}: '
+          '${metric.format(values.first)} -> ${metric.format(values.last)}');
+    }
+    buffer.writeln();
   }
 
-  buffer
-    ..writeln()
-    ..writeln('RECORDING LOG');
+  buffer.writeln('RECORDING LOG');
   for (final r in history) {
     final score =
         r.stabilityScore == null ? '—' : r.stabilityScore!.round().toString();
-    final wpm = r.metrics['speech_rate_wpm']?.toStringAsFixed(0) ?? '—';
     buffer.writeln('  ${dateFormat.format(r.createdAt)}  '
-        'stability $score/100, $wpm wpm, ${r.durationS.round()}s');
+        '${checkTypeByKey(r.recordingType).title}: '
+        'stability $score/100, ${r.durationS.round()}s');
   }
 
   buffer
     ..writeln()
-    ..writeln('All comparisons are against this user\'s own baseline. '
-        'This report tracks change over time and is not a diagnosis.');
+    ..writeln('All comparisons are against this user\'s own baseline for the '
+        'same check type. This report tracks change over time and is not a '
+        'diagnosis.');
   return buffer.toString();
 }

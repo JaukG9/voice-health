@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../models/analysis_result.dart';
+import '../models/check_type.dart';
 import '../services/app_store.dart';
 
 /// A point in time for one metric.
@@ -24,6 +25,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   static const _stabilityKey = '_stability';
 
   int _rangeDays = 30; // 0 = all time
+  String _typeKey = 'reading_passage';
   String _metricKey = _stabilityKey;
 
   @override
@@ -37,6 +39,24 @@ class _TrendsScreenState extends State<TrendsScreen> {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final type in kCheckTypes)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          avatar: Icon(type.icon, size: 16),
+                          label: Text(type.shortTitle),
+                          selected: _typeKey == type.key,
+                          onSelected: (_) => _selectType(type.key),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               SegmentedButton<int>(
                 segments: const [
                   ButtonSegment(value: 7, label: Text('7D')),
@@ -54,7 +74,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
                 child: Row(
                   children: [
                     _chip(_stabilityKey, 'Overall score'),
-                    for (final metric in kChartMetrics)
+                    for (final metric in chartMetricsFor(_typeKey))
                       _chip(metric.key, metric.label),
                   ],
                 ),
@@ -74,6 +94,15 @@ class _TrendsScreenState extends State<TrendsScreen> {
     );
   }
 
+  void _selectType(String typeKey) {
+    setState(() {
+      _typeKey = typeKey;
+      // Reset the metric if it isn't meaningful for the new check type.
+      final valid = chartMetricsFor(typeKey).any((m) => m.key == _metricKey);
+      if (!valid) _metricKey = _stabilityKey;
+    });
+  }
+
   Widget _chip(String key, String label) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -91,6 +120,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
         : DateTime.now().subtract(Duration(days: _rangeDays));
     final points = <_Point>[];
     for (final result in AppStore.instance.history) {
+      if (result.recordingType != _typeKey) continue;
       if (cutoff != null && result.createdAt.isBefore(cutoff)) continue;
       final value = _metricKey == _stabilityKey
           ? result.stabilityScore
@@ -171,7 +201,7 @@ class _TrendsScreenState extends State<TrendsScreen> {
   Widget _changeCard(BuildContext context, List<_Point> points) {
     final info = _metricKey == _stabilityKey
         ? const MetricInfo(_stabilityKey, 'Overall score', '', 0)
-        : kChartMetrics.firstWhere((m) => m.key == _metricKey);
+        : chartMetricsFor(_typeKey).firstWhere((m) => m.key == _metricKey);
     final first = points.first.value;
     final last = points.last.value;
     final delta = last - first;
@@ -198,7 +228,8 @@ class _TrendsScreenState extends State<TrendsScreen> {
               size: 48, color: Theme.of(context).colorScheme.outline),
           const SizedBox(height: 12),
           Text(
-            'Record at least two voice checks in this period to see a trend.',
+            'Record at least two "${checkTypeByKey(_typeKey).title}" checks '
+            'in this period to see a trend.',
             style: Theme.of(context).textTheme.bodyMedium,
             textAlign: TextAlign.center,
           ),

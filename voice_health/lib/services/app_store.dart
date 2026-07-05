@@ -92,6 +92,9 @@ class AppStore extends ChangeNotifier {
   bool get recordedToday =>
       history.any((r) => _isSameDay(r.createdAt, DateTime.now()));
 
+  bool recordedTodayType(String typeKey) => history.any((r) =>
+      r.recordingType == typeKey && _isSameDay(r.createdAt, DateTime.now()));
+
   /// Consecutive days with at least one recording. Today counts if recorded;
   /// otherwise the streak ending yesterday is still shown.
   int get streak {

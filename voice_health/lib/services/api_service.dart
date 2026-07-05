@@ -23,10 +23,10 @@ class ApiService {
   }
 
   /// Uploads a recording and returns the full analysis.
-  Future<AnalysisResult> analyze(File audio) async {
+  Future<AnalysisResult> analyze(File audio, String recordingType) async {
     final request = http.MultipartRequest('POST', _uri('/analyze'))
       ..fields['user_id'] = AppStore.instance.userId
-      ..fields['recording_type'] = 'reading_passage'
+      ..fields['recording_type'] = recordingType
       ..files.add(await http.MultipartFile.fromPath('file', audio.path));
 
     final http.Response response;

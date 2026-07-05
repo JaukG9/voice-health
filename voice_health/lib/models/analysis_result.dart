@@ -3,6 +3,7 @@
 class AnalysisResult {
   final String id;
   final DateTime createdAt;
+  final String recordingType;
   final double durationS;
   final String transcript;
   final double confidence;
@@ -14,6 +15,7 @@ class AnalysisResult {
   const AnalysisResult({
     required this.id,
     required this.createdAt,
+    required this.recordingType,
     required this.durationS,
     required this.transcript,
     required this.confidence,
@@ -35,6 +37,7 @@ class AnalysisResult {
       createdAt:
           DateTime.tryParse(json['created_at'] as String? ?? '')?.toLocal() ??
               DateTime.now(),
+      recordingType: json['recording_type'] as String? ?? 'reading_passage',
       durationS: (json['duration_s'] as num? ?? 0).toDouble(),
       transcript: json['transcript'] as String? ?? '',
       confidence: (json['confidence'] as num? ?? 0).toDouble(),
@@ -48,6 +51,7 @@ class AnalysisResult {
   Map<String, dynamic> toJson() => {
         'id': id,
         'created_at': createdAt.toUtc().toIso8601String(),
+        'recording_type': recordingType,
         'duration_s': durationS,
         'transcript': transcript,
         'confidence': confidence,
@@ -83,3 +87,25 @@ const kChartMetrics = [
   MetricInfo('tremor_index', 'Tremor', '', 3),
   MetricInfo('pronunciation_confidence', 'Articulation', '', 2),
 ];
+
+/// Metrics that are meaningful for a sustained vowel — there are no words,
+/// so rate/pause/articulation metrics don't apply.
+const kVowelMetricKeys = {
+  'duration_s',
+  'mean_pitch_hz',
+  'pitch_variability_semitones',
+  'mean_volume_db',
+  'jitter_percent',
+  'shimmer_percent',
+  'hnr_db',
+  'tremor_index',
+};
+
+/// Chartable metrics for a given check type.
+List<MetricInfo> chartMetricsFor(String typeKey) {
+  if (typeKey != 'sustained_vowel') return kChartMetrics;
+  return [
+    const MetricInfo('duration_s', 'Phonation time', 's', 1),
+    ...kChartMetrics.where((m) => kVowelMetricKeys.contains(m.key)),
+  ];
+}

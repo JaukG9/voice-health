@@ -4,28 +4,20 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../models/analysis_result.dart';
+import '../models/check_type.dart';
 import '../services/api_service.dart';
 import '../services/app_store.dart';
 import '../services/recorder_service.dart';
 import '../widgets/score_ring.dart';
 
-/// The Rainbow Passage — a standard text used in speech assessment, so every
-/// recording is directly comparable to the previous ones.
-const kReadingPassage =
-    'When the sunlight strikes raindrops in the air, they act as a prism and '
-    'form a rainbow. The rainbow is a division of white light into many '
-    'beautiful colors. These take the shape of a long round arch, with its '
-    'path high above, and its two ends apparently beyond the horizon. There '
-    'is, according to legend, a boiling pot of gold at one end. People look, '
-    'but no one ever finds it. When a man looks for something beyond his '
-    'reach, his friends say he is looking for the pot of gold at the end of '
-    'the rainbow.';
-
 enum _Phase { idle, recording, recorded, analyzing, done }
 
-/// Daily voice check: read the passage aloud, then send it for analysis.
+/// Daily voice check: complete the given task aloud, then send it for
+/// analysis. Each check type keeps its own baseline and trends.
 class RecordScreen extends StatefulWidget {
-  const RecordScreen({super.key});
+  final CheckType type;
+
+  const RecordScreen({super.key, this.type = kReadingPassage});
 
   @override
   State<RecordScreen> createState() => _RecordScreenState();
@@ -40,6 +32,8 @@ class _RecordScreenState extends State<RecordScreen> {
   AnalysisResult? _result;
   Duration _elapsed = Duration.zero;
   Timer? _timer;
+
+  bool get _isVowel => widget.type.key == 'sustained_vowel';
 
   @override
   void dispose() {
@@ -86,7 +80,7 @@ class _RecordScreenState extends State<RecordScreen> {
   Future<void> _analyze() async {
     setState(() => _phase = _Phase.analyzing);
     try {
-      final result = await _api.analyze(File(_path!));
+      final result = await _api.analyze(File(_path!), widget.type.key);
       await AppStore.instance.addResult(result);
       setState(() {
         _result = result;
@@ -107,9 +101,9 @@ class _RecordScreenState extends State<RecordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Daily voice check')),
+      appBar: AppBar(title: Text(widget.type.title)),
       body: _phase == _Phase.done
-          ? _ResultView(result: _result!)
+          ? _ResultView(result: _result!, type: widget.type)
           : _recordingView(context),
     );
   }
@@ -122,8 +116,7 @@ class _RecordScreenState extends State<RecordScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               Text(
-                'Read the passage below aloud at a comfortable pace, '
-                'in a quiet room.',
+                widget.type.instructions,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 12),
@@ -133,11 +126,14 @@ class _RecordScreenState extends State<RecordScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    kReadingPassage,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyLarge
-                        ?.copyWith(height: 1.6),
+                    widget.type.displayContent,
+                    textAlign: _isVowel ? TextAlign.center : TextAlign.start,
+                    style: _isVowel
+                        ? Theme.of(context).textTheme.headlineMedium
+                        : Theme.of(context)
+                            .textTheme
+                            .bodyLarge
+                            ?.copyWith(height: 1.6),
                   ),
                 ),
               ),
@@ -177,7 +173,9 @@ class _RecordScreenState extends State<RecordScreen> {
               child: const Icon(Icons.stop),
             ),
             const SizedBox(height: 8),
-            Text('Recording…  ${_format(_elapsed)}'),
+            Text(_isVowel
+                ? 'Recording…  ${_format(_elapsed)} — aim for about 10 seconds'
+                : 'Recording…  ${_format(_elapsed)}'),
           ],
         );
       case _Phase.recorded:
@@ -217,10 +215,11 @@ class _RecordScreenState extends State<RecordScreen> {
 
 class _ResultView extends StatelessWidget {
   final AnalysisResult result;
+  final CheckType type;
 
-  const _ResultView({required this.result});
+  const _ResultView({required this.result, required this.type});
 
-  static const _highlights = [
+  static const _speechHighlights = [
     MetricInfo('speech_rate_wpm', 'Speech rate', 'wpm', 0),
     MetricInfo('avg_pause_duration_s', 'Avg pause', 's', 2),
     MetricInfo('mean_pitch_hz', 'Pitch', 'Hz', 0),
@@ -229,8 +228,19 @@ class _ResultView extends StatelessWidget {
     MetricInfo('hnr_db', 'Clarity (HNR)', 'dB', 1),
   ];
 
+  static const _vowelHighlights = [
+    MetricInfo('duration_s', 'Phonation', 's', 1),
+    MetricInfo('mean_pitch_hz', 'Pitch', 'Hz', 0),
+    MetricInfo('pitch_variability_semitones', 'Pitch variation', 'st', 1),
+    MetricInfo('jitter_percent', 'Jitter', '%', 2),
+    MetricInfo('shimmer_percent', 'Shimmer', '%', 2),
+    MetricInfo('hnr_db', 'Clarity (HNR)', 'dB', 1),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final isVowel = type.key == 'sustained_vowel';
+    final highlights = isVowel ? _vowelHighlights : _speechHighlights;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -239,7 +249,7 @@ class _ResultView extends StatelessWidget {
             children: [
               ScoreRing(score: result.stabilityScore, size: 120),
               const SizedBox(height: 8),
-              const Text('Speech stability'),
+              Text(isVowel ? 'Voice stability' : 'Speech stability'),
             ],
           ),
         ),
@@ -261,7 +271,7 @@ class _ResultView extends StatelessWidget {
           crossAxisSpacing: 8,
           childAspectRatio: 1.4,
           children: [
-            for (final metric in _highlights)
+            for (final metric in highlights)
               if (result.metrics[metric.key] != null)
                 _MetricTile(
                   label: metric.label,
@@ -269,21 +279,23 @@ class _ResultView extends StatelessWidget {
                 ),
           ],
         ),
-        const SizedBox(height: 16),
-        ExpansionTile(
-          title: const Text('Transcript'),
-          tilePadding: EdgeInsets.zero,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                result.transcript.isEmpty
-                    ? 'No speech detected.'
-                    : result.transcript,
+        if (!isVowel) ...[
+          const SizedBox(height: 16),
+          ExpansionTile(
+            title: const Text('Transcript'),
+            tilePadding: EdgeInsets.zero,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  result.transcript.isEmpty
+                      ? 'No speech detected.'
+                      : result.transcript,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
         const SizedBox(height: 16),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),

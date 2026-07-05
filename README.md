@@ -1,10 +1,19 @@
 # NeuroVoice AI
 
 Longitudinal speech monitoring for people with neurological conditions
-(Parkinson's, aphasia, ALS, stroke recovery, MS). The app records a daily
-reading-passage sample, analyzes it on **your own computer** — nothing is sent
-to any cloud service and everything is free — and tracks how your speech
-changes against **your own baseline** over weeks and months.
+(Parkinson's, aphasia, ALS, stroke recovery, MS). The app records daily voice
+checks, analyzes them on **your own computer** — nothing is sent to any cloud
+service and everything is free — and tracks how your speech changes against
+**your own baseline** over weeks and months.
+
+Four daily check types, each with its own baseline and trends:
+
+| Check | Task | Focus |
+|---|---|---|
+| Reading passage | Read the Rainbow Passage aloud | Consistent comparison over time |
+| Sustained "Ahh" | Hold a steady vowel ~10 s | Vocal stability, tremor, breath support, jitter, shimmer |
+| Counting | Count from 1 to 20 | Pacing, pauses, articulation |
+| Free speech | Talk about a rotating daily prompt | Spontaneous, everyday language |
 
 > **Not a medical device.** NeuroVoice AI tracks change over time; it does not
 > diagnose any condition.

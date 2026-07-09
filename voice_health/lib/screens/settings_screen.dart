@@ -147,8 +147,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _testConnection() async {
     setState(() => _testing = true);
     final ok = await _api.ping();
-    setState(() => _testing = false);
     if (!mounted) return;
+    setState(() => _testing = false);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok
           ? 'Connected to the analysis server.'

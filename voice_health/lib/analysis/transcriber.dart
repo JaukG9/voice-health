@@ -76,6 +76,10 @@ class Transcriber {
         language: 'en',
         isNoTimestamps: false,
         splitOnWord: true,
+        threads: Platform.numberOfProcessors.clamp(2, 6),
+        // Skip temperature-fallback retries — much faster, and on a short
+        // clear reading they produce the same transcript anyway.
+        noFallback: true,
       ),
       modelPath: await _controller.getPath(model),
     );

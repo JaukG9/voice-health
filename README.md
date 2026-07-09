@@ -107,6 +107,16 @@ cd voice_health
 flutter run
 ```
 
+**Performance tip**: `flutter run` produces a debug build, which runs the
+analysis math many times slower than a real install. For day-to-day use,
+build in release mode — analysis is dramatically faster:
+
+```powershell
+flutter run --release
+# or, to sideload on a phone:
+flutter build apk --release
+```
+
 Connecting the app to the backend (Settings tab → Server address):
 
 - **Android emulator**: `http://10.0.2.2:8000` (the default — works out of the box).

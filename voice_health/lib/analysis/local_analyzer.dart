@@ -84,8 +84,16 @@ class LocalAnalyzer {
     onStatus?.call('Measuring voice features…');
     ({Map<String, double?> metrics, List<double> embedding}) engine;
     try {
-      engine = await _computeInIsolate(samples, sampleRate, words)
-          .timeout(const Duration(minutes: 2));
+      // Feature extraction and the embedding are independent — run them on
+      // two isolates in parallel.
+      final parts = await Future.wait<Object>([
+        _featuresInIsolate(samples, sampleRate, words),
+        _embeddingInIsolate(samples, sampleRate),
+      ]).timeout(const Duration(minutes: 2));
+      engine = (
+        metrics: parts[0] as Map<String, double?>,
+        embedding: parts[1] as List<double>,
+      );
     } on TimeoutException {
       throw const LocalAnalysisException(
           'Voice measurement timed out on this device.');
@@ -106,6 +114,13 @@ class LocalAnalyzer {
     );
     final summary = generateSummary(engine.metrics, trend, type.key);
 
+    // Same gates the summary uses: a recording without measurable speech (or
+    // a steady vowel) is shown to the user but must not enter the baseline.
+    final usable = type.key == 'sustained_vowel'
+        ? engine.metrics['mean_pitch_hz'] != null &&
+            (engine.metrics['duration_s'] ?? 0) >= 3
+        : (engine.metrics['word_count'] ?? 0) >= 5;
+
     return AnalysisResult(
       id: _newId(),
       createdAt: DateTime.now(),
@@ -121,23 +136,22 @@ class LocalAnalyzer {
       stabilityScore: trend.stabilityScore?.toDouble(),
       summary: summary,
       findings: trend.findings,
+      usable: usable,
     );
   }
 
-  /// Runs the DSP in a background isolate.
-  ///
-  /// This MUST stay a static method whose scope holds only sendable values:
-  /// Isolate.run serializes the closure's surrounding context, and inside
-  /// analyze() that context includes the onStatus UI callback, which cannot
-  /// cross isolates.
-  static Future<({Map<String, double?> metrics, List<double> embedding})>
-      _computeInIsolate(
-          Float64List samples, int sampleRate, List<WordTiming> words) {
-    return Isolate.run(() => (
-          metrics: extractFeatures(samples, sampleRate, words),
-          embedding: mfccStatsEmbedding(samples, sampleRate),
-        ));
-  }
+  // These MUST stay static methods whose scope holds only sendable values:
+  // Isolate.run serializes the closure's surrounding context, and inside
+  // analyze() that context includes the onStatus UI callback, which cannot
+  // cross isolates.
+
+  static Future<Map<String, double?>> _featuresInIsolate(
+          Float64List samples, int sampleRate, List<WordTiming> words) =>
+      Isolate.run(() => extractFeatures(samples, sampleRate, words));
+
+  static Future<List<double>> _embeddingInIsolate(
+          Float64List samples, int sampleRate) =>
+      Isolate.run(() => mfccStatsEmbedding(samples, sampleRate));
 
   static String _newId() {
     final random = Random().nextInt(1 << 30).toRadixString(16);

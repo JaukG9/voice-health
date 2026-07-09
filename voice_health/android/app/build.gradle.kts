@@ -7,7 +7,8 @@ plugins {
 android {
     namespace = "com.example.voice_health"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // whisper_ggml compiles whisper.cpp natively and needs NDK 29.
+    ndkVersion = "29.0.13113456"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

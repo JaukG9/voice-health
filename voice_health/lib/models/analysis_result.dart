@@ -8,6 +8,10 @@ class AnalysisResult {
   final String transcript;
   final double confidence;
   final Map<String, double> metrics;
+
+  /// Voice embedding, kept only for on-device longitudinal comparison.
+  /// Backend-analyzed results don't carry one (the server keeps its own).
+  final List<double>? embedding;
   final double? stabilityScore;
   final String summary;
   final List<String> findings;
@@ -20,6 +24,7 @@ class AnalysisResult {
     required this.transcript,
     required this.confidence,
     required this.metrics,
+    this.embedding,
     required this.stabilityScore,
     required this.summary,
     required this.findings,
@@ -42,6 +47,9 @@ class AnalysisResult {
       transcript: json['transcript'] as String? ?? '',
       confidence: (json['confidence'] as num? ?? 0).toDouble(),
       metrics: metrics,
+      embedding: (json['embedding'] as List?)
+          ?.map((e) => (e as num).toDouble())
+          .toList(),
       stabilityScore: (json['stability_score'] as num?)?.toDouble(),
       summary: json['summary'] as String? ?? '',
       findings: findings.map((e) => e.toString()).toList(),
@@ -56,6 +64,7 @@ class AnalysisResult {
         'transcript': transcript,
         'confidence': confidence,
         'metrics': metrics,
+        if (embedding != null) 'embedding': embedding,
         'stability_score': stabilityScore,
         'summary': summary,
         'findings': findings,

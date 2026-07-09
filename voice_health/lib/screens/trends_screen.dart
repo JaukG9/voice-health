@@ -133,9 +133,11 @@ class _TrendsScreenState extends State<TrendsScreen> {
   Widget _chart(BuildContext context, List<_Point> points) {
     final scheme = Theme.of(context).colorScheme;
     final first = points.first.date;
+    // Seconds-level x resolution: several recordings on one day spread out
+    // by their time instead of stacking into a vertical line.
     final spots = [
       for (final point in points)
-        FlSpot(point.date.difference(first).inHours / 24.0, point.value),
+        FlSpot(point.date.difference(first).inSeconds / 86400.0, point.value),
     ];
     final values = points.map((p) => p.value).toList();
     var minY = values.reduce((a, b) => a < b ? a : b);
@@ -167,12 +169,15 @@ class _TrendsScreenState extends State<TrendsScreen> {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 28,
-              interval: (totalDays / 4).clamp(1, double.infinity),
+              // Sub-two-day spans label by time of day instead of by date.
+              interval: totalDays < 2
+                  ? (totalDays / 4).clamp(1 / 24, 1.0)
+                  : (totalDays / 4).clamp(1.0, double.infinity),
               getTitlesWidget: (value, meta) => SideTitleWidget(
                 meta: meta,
                 child: Text(
-                  DateFormat('M/d')
-                      .format(first.add(Duration(hours: (value * 24).round()))),
+                  DateFormat(totalDays < 2 ? 'HH:mm' : 'M/d').format(
+                      first.add(Duration(seconds: (value * 86400).round()))),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),

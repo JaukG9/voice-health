@@ -1,5 +1,8 @@
 """End-to-end analysis: audio -> transcript -> features -> embedding -> trends -> summary."""
 
+import uuid
+from datetime import datetime, timezone
+
 from ..config import SAMPLE_RATE
 from ..database import get_history, insert_recording
 from .audio import load_audio
@@ -26,18 +29,34 @@ def analyze_recording(path: str, user_id: str, recording_type: str) -> dict:
     trends = compare(metrics, embedding, history, recording_type)
     summary = generate_summary(metrics, trends, recording_type)
 
-    rec_id, created_at = insert_recording(
-        user_id=user_id,
-        recording_type=recording_type,
-        duration_s=metrics["duration_s"],
-        transcript=transcription["transcript"],
-        confidence=transcription["confidence"],
-        metrics=metrics,
-        embedding=embedding,
-        stability_score=trends["stability_score"],
-        summary=summary,
-    )
+    # Same gates the summary uses: a recording without measurable speech (or
+    # a steady vowel) is returned to the user but must not enter the baseline.
+    if recording_type == "sustained_vowel":
+        usable = (
+            metrics.get("mean_pitch_hz") is not None
+            and metrics.get("duration_s", 0) >= 3
+        )
+    else:
+        usable = metrics.get("word_count", 0) >= 5
+
+    if usable:
+        rec_id, created_at = insert_recording(
+            user_id=user_id,
+            recording_type=recording_type,
+            duration_s=metrics["duration_s"],
+            transcript=transcription["transcript"],
+            confidence=transcription["confidence"],
+            metrics=metrics,
+            embedding=embedding,
+            stability_score=trends["stability_score"],
+            summary=summary,
+        )
+    else:
+        rec_id = uuid.uuid4().hex
+        created_at = datetime.now(timezone.utc).isoformat()
+
     return {
+        "usable": usable,
         "id": rec_id,
         "created_at": created_at,
         "recording_type": recording_type,

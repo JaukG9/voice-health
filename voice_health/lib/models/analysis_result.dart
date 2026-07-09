@@ -16,6 +16,11 @@ class AnalysisResult {
   final String summary;
   final List<String> findings;
 
+  /// False when the recording couldn't be meaningfully analyzed (no clear
+  /// speech / no steady vowel). Unusable results are shown to the user but
+  /// kept out of history, so they can't pollute baselines or streaks.
+  final bool usable;
+
   const AnalysisResult({
     required this.id,
     required this.createdAt,
@@ -28,6 +33,7 @@ class AnalysisResult {
     required this.stabilityScore,
     required this.summary,
     required this.findings,
+    this.usable = true,
   });
 
   factory AnalysisResult.fromJson(Map<String, dynamic> json) {
@@ -53,6 +59,7 @@ class AnalysisResult {
       stabilityScore: (json['stability_score'] as num?)?.toDouble(),
       summary: json['summary'] as String? ?? '',
       findings: findings.map((e) => e.toString()).toList(),
+      usable: json['usable'] as bool? ?? true,
     );
   }
 
@@ -68,6 +75,7 @@ class AnalysisResult {
         'stability_score': stabilityScore,
         'summary': summary,
         'findings': findings,
+        'usable': usable,
       };
 }
 

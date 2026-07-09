@@ -49,6 +49,7 @@ class _RecordScreenState extends State<RecordScreen> {
       _showError('Microphone permission is required to record.');
       return;
     }
+    if (!mounted) return;
     setState(() {
       _phase = _Phase.recording;
       _elapsed = Duration.zero;
@@ -61,6 +62,7 @@ class _RecordScreenState extends State<RecordScreen> {
   Future<void> _stop() async {
     _timer?.cancel();
     final path = await _recorder.stop();
+    if (!mounted) return;
     setState(() {
       _path = path;
       _phase = path == null ? _Phase.idle : _Phase.recorded;
@@ -73,6 +75,7 @@ class _RecordScreenState extends State<RecordScreen> {
         await File(_path!).delete();
       } catch (_) {}
     }
+    if (!mounted) return;
     setState(() {
       _path = null;
       _phase = _Phase.idle;
@@ -101,19 +104,25 @@ class _RecordScreenState extends State<RecordScreen> {
       } else {
         result = await _api.analyze(File(_path!), widget.type.key);
       }
-      await AppStore.instance.addResult(result);
+      // Unusable recordings (no clear speech) are shown but not stored, so
+      // they can't pollute baselines or the streak.
+      if (result.usable) await AppStore.instance.addResult(result);
+      if (!mounted) return;
       setState(() {
         _result = result;
         _phase = _Phase.done;
       });
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() => _phase = _Phase.recorded);
       _showError(e.message);
     } on LocalAnalysisException catch (e) {
+      if (!mounted) return;
       setState(() => _phase = _Phase.recorded);
       _showError(e.message);
     } catch (e) {
       // Never leave the user staring at a frozen progress bar.
+      if (!mounted) return;
       setState(() => _phase = _Phase.recorded);
       _showError('Analysis failed unexpectedly: $e');
     }

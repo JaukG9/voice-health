@@ -35,6 +35,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AppStore.instance,
+      builder: (context, _) => _buildSettings(context),
+    );
+  }
+
+  Widget _buildSettings(BuildContext context) {
     final store = AppStore.instance;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -51,25 +58,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: store.setDisplayName,
           ),
           const SizedBox(height: 24),
-          _sectionTitle(context, 'Analysis server'),
-          TextField(
-            controller: _serverController,
-            keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              labelText: 'Server address',
-              helperText: 'Android emulator: http://10.0.2.2:8000 — '
-                  'physical phone: http://<your PC\'s LAN IP>:8000',
-              helperMaxLines: 2,
-              border: OutlineInputBorder(),
-            ),
-            onChanged: store.setServerUrl,
+          _sectionTitle(context, 'Analysis'),
+          SegmentedButton<String>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 'device', label: Text('This phone')),
+              ButtonSegment(value: 'server', label: Text('My computer')),
+            ],
+            selected: {store.analysisMode},
+            onSelectionChanged: (selection) =>
+                store.setAnalysisMode(selection.first),
           ),
           const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _testing ? null : _testConnection,
-            icon: const Icon(Icons.wifi_tethering),
-            label: Text(_testing ? 'Testing…' : 'Test connection'),
+          Text(
+            store.analysisMode == 'device'
+                ? 'Everything runs on this phone — no PC needed and nothing '
+                    'ever leaves the device. The speech model is included '
+                    'with the app.'
+                : 'Recordings are sent to the NeuroVoice backend running on '
+                    'your own computer for analysis.',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
+          if (store.analysisMode == 'server') ...[
+            const SizedBox(height: 16),
+            TextField(
+              controller: _serverController,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: 'Server address',
+                helperText: 'Android emulator: http://10.0.2.2:8000 — '
+                    'physical phone: http://<your PC\'s LAN IP>:8000',
+                helperMaxLines: 2,
+                border: OutlineInputBorder(),
+              ),
+              onChanged: store.setServerUrl,
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _testing ? null : _testConnection,
+              icon: const Icon(Icons.wifi_tethering),
+              label: Text(_testing ? 'Testing…' : 'Test connection'),
+            ),
+          ],
           const SizedBox(height: 24),
           _sectionTitle(context, 'Data'),
           ListTile(
@@ -158,7 +188,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (confirmed != true) return;
-    await _api.deleteServerHistory();
+    if (AppStore.instance.analysisMode == 'server') {
+      await _api.deleteServerHistory();
+    }
     await AppStore.instance.clearHistory();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

@@ -17,48 +17,72 @@ class AppStore extends ChangeNotifier {
   static final AppStore instance = AppStore._();
 
   late SharedPreferences _prefs;
-  late File _historyFile;
+  File? _historyFile;
   List<AnalysisResult> history = [];
+
+  // Settings live in memory (instant reads/writes for the UI) and are
+  // persisted to SharedPreferences in the background.
+  late String _userId;
+  var _displayName = '';
+  var _analysisMode = 'device';
+  var _serverUrl = 'http://10.0.2.2:8000';
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    if (_prefs.getString('userId') == null) {
+    var userId = _prefs.getString('userId');
+    if (userId == null) {
       final random = Random.secure();
-      final id =
+      userId =
           List.generate(32, (_) => random.nextInt(16).toRadixString(16)).join();
-      await _prefs.setString('userId', id);
+      await _prefs.setString('userId', userId);
     }
-    final dir = await getApplicationDocumentsDirectory();
-    _historyFile = File('${dir.path}/history.json');
-    if (await _historyFile.exists()) {
-      try {
-        final list = jsonDecode(await _historyFile.readAsString()) as List;
+    _userId = userId;
+    _displayName = _prefs.getString('displayName') ?? _displayName;
+    _analysisMode = _prefs.getString('analysisMode') ?? _analysisMode;
+    _serverUrl = _prefs.getString('serverUrl') ?? _serverUrl;
+
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      _historyFile = File('${dir.path}/history.json');
+      if (await _historyFile!.exists()) {
+        final list = jsonDecode(await _historyFile!.readAsString()) as List;
         history = list
             .map((e) => AnalysisResult.fromJson(e as Map<String, dynamic>))
             .toList();
-      } catch (_) {
-        history = [];
       }
+    } catch (_) {
+      // No documents directory (tests) or corrupt file — start empty.
+      history = [];
     }
   }
 
   // ---- Profile & settings ----
 
-  String get userId => _prefs.getString('userId')!;
+  String get userId => _userId;
 
-  String get displayName => _prefs.getString('displayName') ?? '';
+  String get displayName => _displayName;
   Future<void> setDisplayName(String value) async {
-    await _prefs.setString('displayName', value.trim());
+    _displayName = value.trim();
     notifyListeners();
+    await _prefs.setString('displayName', _displayName);
+  }
+
+  /// Where analysis happens: 'device' (fully on the phone, no PC needed)
+  /// or 'server' (the FastAPI backend).
+  String get analysisMode => _analysisMode;
+  Future<void> setAnalysisMode(String value) async {
+    _analysisMode = value;
+    notifyListeners();
+    await _prefs.setString('analysisMode', value);
   }
 
   /// Address of the FastAPI backend. `10.0.2.2` reaches the host machine
   /// from the Android emulator; use your PC's LAN IP on a physical phone.
-  String get serverUrl =>
-      _prefs.getString('serverUrl') ?? 'http://10.0.2.2:8000';
+  String get serverUrl => _serverUrl;
   Future<void> setServerUrl(String value) async {
-    await _prefs.setString('serverUrl', value.trim());
+    _serverUrl = value.trim();
     notifyListeners();
+    await _prefs.setString('serverUrl', _serverUrl);
   }
 
   // ---- History ----
@@ -76,8 +100,8 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _save() => _historyFile
-      .writeAsString(jsonEncode(history.map((r) => r.toJson()).toList()));
+  Future<void> _save() async => _historyFile
+      ?.writeAsString(jsonEncode(history.map((r) => r.toJson()).toList()));
 
   // ---- Derived dashboard stats ----
 

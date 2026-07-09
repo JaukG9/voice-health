@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../analysis/local_analyzer.dart';
 import '../models/analysis_result.dart';
 import '../models/check_type.dart';
 import '../services/api_service.dart';
@@ -32,6 +33,7 @@ class _RecordScreenState extends State<RecordScreen> {
   AnalysisResult? _result;
   Duration _elapsed = Duration.zero;
   Timer? _timer;
+  String _analyzingStatus = '';
 
   bool get _isVowel => widget.type.key == 'sustained_vowel';
 
@@ -78,9 +80,27 @@ class _RecordScreenState extends State<RecordScreen> {
   }
 
   Future<void> _analyze() async {
-    setState(() => _phase = _Phase.analyzing);
+    final onDevice = AppStore.instance.analysisMode == 'device';
+    setState(() {
+      _phase = _Phase.analyzing;
+      _analyzingStatus = onDevice
+          ? 'Analyzing on this phone…'
+          : 'Uploading and analyzing… the first analysis of the day '
+              'can take a minute.';
+    });
     try {
-      final result = await _api.analyze(File(_path!), widget.type.key);
+      final AnalysisResult result;
+      if (onDevice) {
+        result = await LocalAnalyzer().analyze(
+          File(_path!),
+          widget.type,
+          onStatus: (status) {
+            if (mounted) setState(() => _analyzingStatus = status);
+          },
+        );
+      } else {
+        result = await _api.analyze(File(_path!), widget.type.key);
+      }
       await AppStore.instance.addResult(result);
       setState(() {
         _result = result;
@@ -89,6 +109,13 @@ class _RecordScreenState extends State<RecordScreen> {
     } on ApiException catch (e) {
       setState(() => _phase = _Phase.recorded);
       _showError(e.message);
+    } on LocalAnalysisException catch (e) {
+      setState(() => _phase = _Phase.recorded);
+      _showError(e.message);
+    } catch (e) {
+      // Never leave the user staring at a frozen progress bar.
+      setState(() => _phase = _Phase.recorded);
+      _showError('Analysis failed unexpectedly: $e');
     }
   }
 
@@ -193,12 +220,11 @@ class _RecordScreenState extends State<RecordScreen> {
           ],
         );
       case _Phase.analyzing:
-        return const Column(
+        return Column(
           children: [
-            LinearProgressIndicator(),
-            SizedBox(height: 12),
-            Text('Uploading and analyzing… the first analysis of the day '
-                'can take a minute.'),
+            const LinearProgressIndicator(),
+            const SizedBox(height: 12),
+            Text(_analyzingStatus, textAlign: TextAlign.center),
           ],
         );
       case _Phase.done:

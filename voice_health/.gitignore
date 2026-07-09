@@ -46,6 +46,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Bundled whisper model — large binary, fetched locally (see README)
+assets/models/*.bin
+
 # Firebase & Secrets
 google-services.json
 GoogleService-Info.plist

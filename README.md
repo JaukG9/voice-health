@@ -2,9 +2,28 @@
 
 Longitudinal speech monitoring for people with neurological conditions
 (Parkinson's, aphasia, ALS, stroke recovery, MS). The app records daily voice
-checks, analyzes them on **your own computer** — nothing is sent to any cloud
-service and everything is free — and tracks how your speech changes against
+checks, analyzes them **entirely on the phone by default** — whisper.cpp
+transcription plus a pure-Dart signal-processing engine, so no PC, no cloud,
+nothing ever leaves the device — and tracks how your speech changes against
 **your own baseline** over weeks and months.
+
+Two analysis modes (Settings → Analysis):
+
+- **This phone** (default): fully offline — the whisper `tiny.en` speech model
+  ships inside the app. No setup, no downloads, no network.
+- **My computer**: sends recordings to the FastAPI backend below — slightly
+  more accurate transcription (beam search + word confidence) and an optional
+  ECAPA-TDNN embedding upgrade.
+
+**Building from a fresh clone**: the ~75 MB model binary is not committed to
+git. Fetch it once before building the app:
+
+```powershell
+Invoke-WebRequest -Uri "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin" -OutFile "voice_health\assets\models\ggml-tiny.en.bin"
+```
+
+(If the file is missing, the app still works — it downloads the model on the
+first analysis instead.)
 
 Four daily check types, each with its own baseline and trends:
 
@@ -40,7 +59,7 @@ embedding. Each new recording is compared to the personal baseline (first 5
 recordings) and a 0–100 stability score plus a patient-friendly summary is
 generated — deterministically, with no paid LLM.
 
-## Running the backend (Windows PC)
+## Running the backend (optional, Windows PC)
 
 The virtual environment is already set up in `backend/.venv`. To start the
 server:
@@ -98,23 +117,34 @@ Connecting the app to the backend (Settings tab → Server address):
 ## Project layout
 
 ```
-backend/
+backend/                    optional PC analysis server
   app/main.py               API: /health, /analyze, /history/{user}, DELETE /history/{user}
   app/analysis/             audio.py, transcription.py, features.py, dsp.py,
                             embeddings.py, trends.py, summary.py, pipeline.py
   app/database.py           SQLite history
 voice_health/
+  lib/analysis/             on-device engine: transcriber (whisper.cpp), dsp,
+                            pitch, voice_quality, features, embedding, trends,
+                            summary, local_analyzer
   lib/screens/              home (dashboard), record, trends, settings
   lib/services/             app_store, api_service, recorder_service, report_builder
-  lib/models/               analysis_result
+  lib/models/               analysis_result, check_type
+  integration_test/         on-device pipeline test (runs on emulator/phone)
 ```
 
 ## Notes
 
-- **$0 by design**: local Whisper, Praat via parselmouth, numpy/scipy DSP,
+- **$0 by design**: whisper.cpp / local Whisper, pure-Dart & numpy/scipy DSP,
   template-based summaries. No accounts, no API keys, no cloud.
-- The DSP layer (`app/analysis/dsp.py`) is deliberately numba/librosa-free:
-  Windows Smart App Control blocks numba's unsigned DLLs.
+- The on-device engine (`lib/analysis/`) mirrors the backend pipeline:
+  autocorrelation pitch tracking, pulse-marked jitter/shimmer, HNR, tremor,
+  MFCC-stats embeddings, identical trend thresholds and summary wording.
+  Word-level confidence (the "Articulation" metric) is backend-only.
+- The backend DSP layer (`app/analysis/dsp.py`) is deliberately
+  numba/librosa-free: Windows Smart App Control blocks numba's unsigned DLLs.
 - Recordings stay on the phone (`documents/recordings/`); analysis history is
-  cached on the phone and mirrored in the backend's SQLite file.
+  cached on the phone (and mirrored in the backend's SQLite file when using
+  server mode).
 - Privacy: users are identified only by a random anonymous ID.
+- On-device end-to-end test (with an emulator or phone attached):
+  `flutter test integration_test/on_device_analysis_test.dart`
